@@ -1,126 +1,90 @@
+import re
 import requests
 from bs4 import BeautifulSoup
-import json
-import time
 from datetime import datetime
 
-BASE_URL = "https://fixbettv83.com/"
-CHANNEL_IDS = {
-    "zirve": "Bein Sports 1",
-    "b2": "Bein Sports 2",
-    # ... diğer tüm kanal ID'leri
-}
-
-HEADERS = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-    "Accept-Language": "tr-TR,tr;q=0.9"
-}
-
-def fetch_page(url):
-    """Sayfayı indir ve BeautifulSoup nesnesi döndür."""
+# 1. GÜNCEL DOMAİNİ BULMA
+def get_current_domain():
+    # NOT: Bu tür siteler genelde adres değiştirir (83 -> 84 gibi).
+    # Eğer sitenin sabit bir yönlendirme linki (örneğin Twitter biosundaki link) varsa
+    # buraya onu yazmalısın. Bot o linke gidip yönlendirildiği son adresi alacaktır.
+    master_url = "https://t.me/s/fixbet" # Örnek telegram kanalı veya master yönlendirici link
+    
     try:
-        r = requests.get(url, headers=HEADERS, timeout=15)
-        r.raise_for_status()
-        return BeautifulSoup(r.text, "lxml")
+        # Örnek mantık: Yönlendirmeyi takip et
+        # response = requests.get(master_url, allow_redirects=True)
+        # current_url = response.url
+        
+        # Şimdilik varsayılan olarak bir URL dönüyoruz. 
+        # Gerçek senaryoda üstteki request mantığını sitenin yapısına göre uyarlamalısın.
+        current_url = "https://fixbettv84.com/" 
+        
+        if not current_url.endswith('/'):
+            current_url += '/'
+        return current_url
     except Exception as e:
-        print(f"⚠️ Hata ({url}): {e}")
+        print(f"Domain çekilirken hata: {e}")
         return None
 
-def parse_stream_url(soup):
-    """
-    Kanal sayfasından gerçek m3u8 linkini çıkar.
-    Örnek: <iframe src="...m3u8..."> veya <video src="...">
-    """
-    if not soup:
+# 2. GÜNÜN MAÇLARINI ÇEKME
+def get_daily_matches():
+    try:
+        # Örnek olarak tff, mackolik veya ücretsiz bir spor apisinden veri çekilebilir.
+        # Burada basitçe örnek bir veri yapısı oluşturuyoruz.
+        # Web scraping (BeautifulSoup) ile bir iddaa/spor sitesinden maçlar çekilebilir.
+        
+        # Gerçek bir senaryo örneği (Örnek site URL'si):
+        # res = requests.get("https://www.sporx.com/tv-rehberi")
+        # soup = BeautifulSoup(res.text, 'html.parser')
+        # maçları soup.find_all() ile çek...
+        
+        # Şimdilik örnek HTML döndürüyoruz:
+        today = datetime.now().strftime("%d.%m.%Y")
+        html_content = f"""
+<section class="toolbar" style="margin-bottom: 20px; display: block;">
+    <h3 style="color: var(--cyan); margin-bottom: 10px; font-size: 1rem;">📅 Günün Öne Çıkan Maçları ({today})</h3>
+    <ul style="list-style: none; font-size: 0.85rem; color: var(--text); line-height: 1.8;">
+        <li>⚽ 19:00 - Galatasaray vs Fenerbahçe (Bein Sports 1)</li>
+        <li>⚽ 21:45 - Real Madrid vs Barcelona (S Sport)</li>
+        <li>🏀 22:00 - Anadolu Efes vs Panathinaikos (Smart Spor)</li>
+    </ul>
+</section>
+"""
+        return html_content
+    except Exception as e:
+        print(f"Maçlar çekilirken hata: {e}")
         return None
 
-    # 1. Yöntem: iframe içinde ara
-    iframe = soup.find("iframe")
-    if iframe and iframe.get("src"):
-        src = iframe["src"]
-        if ".m3u8" in src:
-            return src
-        # Eğer iframe başka bir sayfaya gidiyorsa, o sayfayı da çek
-        if src.startswith("http"):
-            nested_soup = fetch_page(src)
-            return parse_stream_url(nested_soup)
+# 3. HTML DOSYASINI GÜNCELLEME
+def update_html():
+    with open('index.html', 'r', encoding='utf-8') as file:
+        content = file.read()
 
-    # 2. Yöntem: video etiketinde ara
-    video = soup.find("video")
-    if video and video.get("src"):
-        return video["src"]
+    # Domain Güncelleme
+    new_domain = get_current_domain()
+    if new_domain:
+        # Regex ile BASE_URL satırını bul ve değiştir
+        content = re.sub(
+            r'(// BASE_URL_START\nconst BASE_URL=")(.*?)(";)',
+            rf'\g<1>{new_domain}\g<3>',
+            content
+        )
+        print(f"Yeni domain ayarlandı: {new_domain}")
 
-    # 3. Yöntem: script içinde m3u8 patterni ara
-    import re
-    pattern = re.compile(r'(https?://\S+\.m3u8[^\s"\']*)')
-    scripts = soup.find_all("script")
-    for script in scripts:
-        if script.string:
-            match = pattern.search(script.string)
-            if match:
-                return match.group(1)
+    # Maçları Güncelleme
+    new_matches = get_daily_matches()
+    if new_matches:
+        # Regex ile yorum satırları arasını değiştir
+        content = re.sub(
+            r'(<!-- GUNUN_MACLARI_BASLANGIC -->).*?(<!-- GUNUN_MACLARI_BITIS -->)',
+            rf'\1\n{new_matches}\n\2',
+            content,
+            flags=re.DOTALL
+        )
+        print("Günün maçları güncellendi.")
 
-    return None
-
-def parse_matches(soup):
-    """
-    Günün maç listesini çıkar.
-    Sitenin maç listesi yapısına göre uyarlayın.
-    """
-    matches = []
-    # Örnek: her maç .match-card sınıfında olabilir
-    cards = soup.select(".match-card") if soup else []
-    for card in cards:
-        home = card.select_one(".home-team").get_text(strip=True)
-        away = card.select_one(".away-team").get_text(strip=True)
-        time_ = card.select_one(".match-time").get_text(strip=True)
-        league = card.select_one(".league").get_text(strip=True)
-        channel = card.select_one(".channel").get_text(strip=True)
-        matches.append({
-            "home": home,
-            "away": away,
-            "time": time_,
-            "league": league,
-            "channel": channel
-        })
-    return matches
-
-def update_streams():
-    """Tüm kanallar için stream linklerini topla ve streams.json'a yaz."""
-    streams = {}
-    for channel_id, channel_name in CHANNEL_IDS.items():
-        print(f"🔄 {channel_name} kontrol ediliyor...")
-        soup = fetch_page(f"{BASE_URL}channel?id={channel_id}")
-        url = parse_stream_url(soup)
-        if url:
-            streams[channel_id] = {
-                "name": channel_name,
-                "url": url,
-                "updated_at": datetime.utcnow().isoformat() + "Z"
-            }
-            print(f"   ✅ Link bulundu: {url[:60]}...")
-        else:
-            print(f"   ❌ Link bulunamadı")
-        time.sleep(2)  # Sunucuyu yormamak için bekleme
-
-    with open("streams.json", "w", encoding="utf-8") as f:
-        json.dump(streams, f, ensure_ascii=False, indent=2)
-    print(f"💾 streams.json güncellendi ({len(streams)} kanal)")
-
-def update_matches():
-    """Günün maçlarını çek ve matches.json'a yaz."""
-    print("⚽ Maçlar kontrol ediliyor...")
-    soup = fetch_page(BASE_URL)  # veya maçların olduğu sayfa
-    matches = parse_matches(soup)
-    data = {
-        "date": datetime.now().strftime("%Y-%m-%d"),
-        "updated_at": datetime.utcnow().isoformat() + "Z",
-        "matches": matches
-    }
-    with open("matches.json", "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
-    print(f"💾 matches.json güncellendi ({len(matches)} maç)")
+    with open('index.html', 'w', encoding='utf-8') as file:
+        file.write(content)
 
 if __name__ == "__main__":
-    update_streams()
-    update_matches()
+    update_html()
