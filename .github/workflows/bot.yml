@@ -1,0 +1,32 @@
+name: Otomatik Güncelleyici Bot
+
+on:
+  schedule:
+    # Her gün sabah 10:00'da ve akşam 18:00'da çalışır (UTC saatine göre, Türkiye için +3 ekle)
+    - cron: '0 7,15 * * *'
+  workflow_dispatch: # GitHub üzerinden manuel olarak butona basıp çalıştırabilmeni sağlar
+
+jobs:
+  update-site:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Depoyu Çek (Checkout)
+        uses: actions/checkout@v3
+
+      - name: Python Ortamını Kur
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Gerekli Kütüphaneleri Yükle
+        run: pip install -r requirements.txt
+
+      - name: Botu Çalıştır (Verileri Çek ve HTML'i Güncelle)
+        run: python update_bot.py
+
+      - name: Değişiklikleri GitHub'a Gönder (Commit & Push)
+        uses: stefanzweifel/git-auto-commit-action@v4
+        with:
+          commit_message: "🤖 Bot: Link ve Günün Maçları Güncellendi"
+          branch: main
