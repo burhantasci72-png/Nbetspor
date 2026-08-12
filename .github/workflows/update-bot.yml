@@ -1,0 +1,35 @@
+name: Update Channel Links and Matches
+
+on:
+  schedule:
+    - cron: '*/15 * * * *'   # Her 15 dakikada bir
+  workflow_dispatch:          # Elle tetikleme için
+
+permissions:
+  contents: write
+
+jobs:
+  update-data:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run update bot
+        run: python update_bot.py
+
+      - name: Commit and push changes
+        run: |
+          git config --global user.name 'github-actions[bot]'
+          git config --global user.email 'github-actions[bot]@users.noreply.github.com'
+          git add streams.json matches.json
+          git commit -m "🔄 Auto-update streams and matches [$(date -u +'%Y-%m-%d %H:%M:%S UTC')]" || echo "No changes to commit"
+          git push
