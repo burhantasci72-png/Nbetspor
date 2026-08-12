@@ -2,13 +2,17 @@ name: Otomatik Güncelleyici Bot
 
 on:
   schedule:
-    # Her gün sabah 10:00'da ve akşam 18:00'da çalışır (UTC saatine göre, Türkiye için +3 ekle)
     - cron: '0 7,15 * * *'
-  workflow_dispatch: # GitHub üzerinden manuel olarak butona basıp çalıştırabilmeni sağlar
+  workflow_dispatch:
+
+# BU İKİ SATIRI EKLİYORUZ:
+permissions:
+  contents: write
 
 jobs:
   update-site:
     runs-on: ubuntu-latest
+# ... (kodun geri kalanı aynı)
 
     steps:
       - name: Depoyu Çek (Checkout)
